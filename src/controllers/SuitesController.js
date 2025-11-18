@@ -42,4 +42,72 @@ module.exports = {
     }
   },
     
+  async limpezaSuite(request, response) {
+    try {
+      const id = request.params.suiId;
+  
+      // Buscar status atual da suíte
+      const suite = await connection("suites")
+        .where("suiId", id)
+        .select("suiStatus")
+        .first();
+  
+      if (!suite) {
+        return response.status(404).json({ error: "Suíte não encontrada." });
+      }
+  
+      // Se for A → vira L, se for L → vira A
+      const novoStatus = suite.suiStatus === "A" ? "L" : "A";
+  
+      await connection("suites")
+        .where("suiId", id)
+        .update({ suiStatus: novoStatus });
+  
+      return response.json({
+        sucesso: true,
+        suiId: id,
+        statusAntigo: suite.suiStatus,
+        statusNovo: novoStatus
+      });
+  
+    } catch (error) {
+      console.error(error);
+      return response.status(500).json({ message: "Erro ao atualizar status da suíte." });
+    }
+  },
+
+  async manutencaoSuite(request, response) {
+    try {
+      const id = request.params.suiId;
+  
+      // Buscar status atual da suíte
+      const suite = await connection("suites")
+        .where("suiId", id)
+        .select("suiStatus")
+        .first();
+  
+      if (!suite) {
+        return response.status(404).json({ error: "Suíte não encontrada." });
+      }
+  
+      // Se for A → vira M, se for M → vira A
+      const novoStatus = suite.suiStatus === "A" ? "M" : "A";
+  
+      await connection("suites")
+        .where("suiId", id)
+        .update({ suiStatus: novoStatus });
+  
+      return response.json({
+        sucesso: true,
+        suiId: id,
+        statusAntigo: suite.suiStatus,
+        statusNovo: novoStatus
+      });
+  
+    } catch (error) {
+      console.error(error);
+      return response.status(500).json({ message: "Erro ao atualizar status da suíte." });
+    }
+  },
+
 };

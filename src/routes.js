@@ -6,6 +6,7 @@ const PagSeguroController = require('./controllers/PagSeguroController');
 const CategoriasController = require('./controllers/CategoriasController');
 const MovimentosController = require('./controllers/MovimentosController');
 const SuitesController = require('./controllers/SuitesController');
+const ProdutosController = require('./controllers/ProdutosController');
 
 routes.get('/', (request, response) => {
     response.json({
@@ -30,5 +31,11 @@ routes.get('/searchMovim/:suiId', MovimentosController.searchMovim);
 routes.get('/dadosMovim/:movId', MovimentosController.dadosMovim);
 
 routes.get('/searchSuite/:suiId', SuitesController.searchSuite);
+routes.put('/limpezaSuite/:suiId', SuitesController.limpezaSuite);
+
+routes.get('/searchItens/:movim', MovimentosController.searchItens);
+routes.get('/searchProd/:codigoProduto', ProdutosController.searchProd);
+routes.post('/newItem', MovimentosController.newItem);
+routes.post('/removeItem', MovimentosController.removeItem);
 
 module.exports = routes;
