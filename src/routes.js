@@ -2,7 +2,6 @@ const express = require('express');
 const routes = express.Router();
 
 const UsersController = require('./controllers/UsersController');
-const PagSeguroController = require('./controllers/PagSeguroController');
 const CategoriasController = require('./controllers/CategoriasController');
 const MovimentosController = require('./controllers/MovimentosController');
 const SuitesController = require('./controllers/SuitesController');
@@ -22,8 +21,6 @@ routes.post('/loginCpf', UsersController.loginCPF);
 
 routes.get('/categorias', CategoriasController.index);
 
-routes.post('/webhook/pagseguro', PagSeguroController.webhook);
-
 routes.get('/movimentos', MovimentosController.index);
 routes.post('/entrada', MovimentosController.entrada);
 routes.post('/fechar', MovimentosController.fechar);
@@ -32,10 +29,13 @@ routes.get('/dadosMovim/:movId', MovimentosController.dadosMovim);
 
 routes.get('/searchSuite/:suiId', SuitesController.searchSuite);
 routes.put('/limpezaSuite/:suiId', SuitesController.limpezaSuite);
+routes.put('/manutencaoSuite/:suiId', SuitesController.manutencaoSuite);
 
 routes.get('/searchItens/:movim', MovimentosController.searchItens);
 routes.get('/searchProd/:codigoProduto', ProdutosController.searchProd);
 routes.post('/newItem', MovimentosController.newItem);
 routes.post('/removeItem', MovimentosController.removeItem);
+
+routes.get('/searchProdDesc/:texto', ProdutosController.searchProdDesc);
 
 module.exports = routes;

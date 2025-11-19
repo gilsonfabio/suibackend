@@ -44,4 +44,14 @@ module.exports = {
     
         return response.json(prod);
     },
+
+    async searchProdDesc(request, response) {
+        const desc = request.params.texto;
+    
+        const prod = await connection('suiProdutos')
+        .where("prdDescricao", "like", `%${desc}%`)
+        .limit(20);
+    
+        return response.json(prod);
+    },
 };
