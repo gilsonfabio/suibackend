@@ -35,6 +35,7 @@ routes.get('/searchItens/:movim', MovimentosController.searchItens);
 routes.get('/searchProd/:codigoProduto', ProdutosController.searchProd);
 routes.post('/newItem', MovimentosController.newItem);
 routes.post('/removeItem', MovimentosController.removeItem);
+routes.get('/vlrPermanencia/:suiId/:tmp', MovimentosController.vlrPermanencia);
 
 routes.get('/searchProdDesc/:texto', ProdutosController.searchProdDesc);
 

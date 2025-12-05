@@ -14,7 +14,8 @@ module.exports = {
   async entrada(request, response) {
     const id = request.body.suiId;
     const usr = request.body.usrId;
-    const qtdExtra = request.body.qtdUsrExtra;
+    const qtdExtra = Number(request.body.qtdUsrExtra);
+    const deposito = request.body.vlrDeposito | 0 ;
 
     const suite = await connection('suites')
     .where('suiId', id)
@@ -31,6 +32,10 @@ module.exports = {
     const datProcess = new Date(year,month,day);
 
     const datEntrada = moment().format();
+    let vlrExtra = Number(0);
+    if (qtdExtra > 0) {
+      vlrExtra = qtdExtra * 20.00
+    }
 
     const [movId] = await connection('movSuites').insert({
       movSuiId: id,
@@ -38,7 +43,9 @@ module.exports = {
       movSuiEntrada: datEntrada, 
       movSuiVlr: suiValor, 
       movSuiUsrEnt: usr, 
-      movSuiUsrQtdExtra: qtdExtra, 
+      movSuiUsrQtdExtra: qtdExtra,
+      movSuiUsrVlrExtra: vlrExtra, 
+      movSuiVlrDeposito: deposito,
       movSuiStatus: status 
     });
 
@@ -51,7 +58,7 @@ module.exports = {
          
     return response.json({movId});
   },  
-  
+  /* 
   async fechar(request, response) {
     try {
       const id = request.body.movim;
@@ -108,6 +115,108 @@ module.exports = {
       return response.status(500).json({ error: "Erro ao fechar movimento." });
     }
   },  
+  */ 
+
+
+
+  async fechar(request, response) {
+    try {
+      const id = request.body.movim;
+  
+      if (!id) {
+        return response.status(400).json({ error: "ID do movimento não informado." });
+      }
+  
+      console.log("Movimento recebido:", id);
+  
+      // Buscar movimento
+      const mov = await connection("movSuites")
+        .where("movId", id)
+        .first();
+  
+      if (!mov) {
+        return response.status(404).json({ error: "Movimento não encontrado." });
+      }
+  
+      // Preparar dados de fechamento
+      const agora = moment();
+      const entrada = moment(mov.movSuiEntrada);
+      const duracao = moment.duration(agora.diff(entrada));
+  
+      const horas = String(Math.floor(duracao.asHours())).padStart(2, "0");
+      const minutos = String(duracao.minutes()).padStart(2, "0");
+      const tempoPermanencia = `${horas}:${minutos}`;
+  
+      // --- Cálculo do valor da permanência ---
+      function timeToMinutes(t) {
+        const [h, m, s] = t.split(":").map(Number);
+        return h * 60 + m + (s ? s / 60 : 0);
+      }
+  
+      const totalMinutos = timeToMinutes(tempoPermanencia);
+  
+      const periodos = await connection("suiPeriodos")
+        .where("suiPerSuiId", mov.movSuiId)
+        .orderBy("suiPerTmp", "asc");
+  
+      if (!periodos || periodos.length === 0) {
+        return response.status(404).json({ error: "Nenhum período encontrado." });
+      }
+  
+      let totConsumo = mov.movSuiTotConsumo;
+      let periodoEscolhido = null;
+  
+      for (let i = 0; i < periodos.length; i++) {
+        const p = periodos[i];
+        const periodoMin = timeToMinutes(p.suiPerTmp);
+        const carenciaMin = timeToMinutes(p.suiPerCarencia);
+  
+        if (totalMinutos <= periodoMin) {
+          const diferenca = periodoMin - totalMinutos;
+          // Dentro ou fora da carência, cobra-se este período
+          periodoEscolhido = p;
+          break;
+        }
+      }
+  
+      // Se passou do último período → usar o último
+      if (!periodoEscolhido) {
+        periodoEscolhido = periodos[periodos.length - 1];
+      }
+  
+      const valorPermanencia = periodoEscolhido.suiPerValor;
+  
+      // Atualizar movimento com saída, tempo de permanência e valor
+      await connection("movSuites")
+        .where("movId", id)
+        .update({
+          movSuiSaida: agora.format("YYYY-MM-DD HH:mm:ss"),
+          movSuiTmpPer: tempoPermanencia,
+          movSuiStatus: "F",
+          movSuiVlrPer: valorPermanencia, // <- novo campo para armazenar valor
+          movSuiTotPagar: valorPermanencia + totConsumo
+        });
+  
+      // Liberar suíte
+      await connection("suites")
+        .where("suiId", mov.movSuiId)
+        .update({ suiStatus: "L" });
+  
+      // Resposta final
+      return response.json({
+        sucesso: true,
+        movId: id,
+        tempo: tempoPermanencia,
+        valor: valorPermanencia,
+        descricaoPeriodo: periodoEscolhido.suiPerDesc,
+      });
+  
+    } catch (error) {
+      console.error("Erro ao fechar movimento:", error);
+      return response.status(500).json({ error: "Erro ao fechar movimento." });
+    }
+  },
+
 
   async searchMovim(request, response) {
     const id = request.params.suiId;
@@ -133,8 +242,101 @@ module.exports = {
     .first();
 
     return response.json(movim);
-  }, 
+  },
+  
+  async vlrPermanencia(request, response) {
+    try {
+      const suiId = request.params.suiId;
+      const tmpPermanencia = request.params.tmp;
+  
+      function timeToMinutes(t) {
+        const [h, m, s] = t.split(":").map(Number);
+        return h * 60 + m + (s ? s / 60 : 0);
+      }
+  
+      const totalMinutosInicial = timeToMinutes(tmpPermanencia);
+      let totalMinutos = totalMinutosInicial;
+  
+      const hoje = new Date();
+      const diaSemana = hoje.getDay() + 1;
+  
+      //console.log(`calculando permanencia suite ${suiId} Tot. Permanencia: ${totalMinutos} Data: ${hoje} dia Semana: ${diaSemana} `);
 
+      const periodos = await connection("suiPeriodos")
+        .where("suiPerSuiId", suiId)
+        .where("suiPerDiaId", diaSemana)
+        .orderBy("suiPerTmp", "asc");
+  
+      if (!periodos || periodos.length === 0) {
+        return response.status(404).json({ error: "Nenhum período encontrado." });
+      }
+  
+      // ------------------------------
+      // 1️⃣ SEPARAR O MAIOR PERÍODO
+      // ------------------------------
+      const ultimoPeriodo = periodos[periodos.length - 1];
+      const ultimoPeriodoMin = timeToMinutes(ultimoPeriodo.suiPerTmp);
+      const ultimoPeriodoValor = ultimoPeriodo.suiPerValor;
+  
+      let valorTotal = 0;
+  
+      // ---------------------------------------------------
+      // 2️⃣ LOOP: DESCONTAR MÚLTIPLOS DO MAIOR PERÍODO
+      // ---------------------------------------------------
+      while (totalMinutos > ultimoPeriodoMin) {
+        valorTotal += ultimoPeriodoValor; // soma valor do período mais alto
+        totalMinutos -= ultimoPeriodoMin; // desconta tempo
+      }
+  
+      // Agora totalMinutos contém somente o restante
+  
+      // ---------------------------------------------------
+      // 3️⃣ CALCULAR O PERÍODO DO TEMPO RESTANTE
+      // ---------------------------------------------------
+      let periodoEscolhido = null;
+  
+      for (let i = 0; i < periodos.length; i++) {
+        const p = periodos[i];
+        const periodoMin = timeToMinutes(p.suiPerTmp);
+        const carenciaMin = timeToMinutes(p.suiPerCarencia);
+  
+        if (totalMinutos <= periodoMin) {
+          const diferenca = periodoMin - totalMinutos;
+  
+          // mesma lógica original
+          if (diferenca <= carenciaMin) {
+            periodoEscolhido = p;
+          } else {
+            periodoEscolhido = p;
+          }
+          break;
+        }
+      }
+  
+      // Se ainda não achou, usar o último período (tempo maior que todos)
+      if (!periodoEscolhido) {
+        periodoEscolhido = ultimoPeriodo;
+      }
+  
+      valorTotal += periodoEscolhido.suiPerValor;
+  
+      //console.log('valor final calculado de permanencia...', valorTotal);
+
+      return response.json({
+        tempoOriginal: tmpPermanencia,
+        loopsDoMaiorPeriodo: Math.floor(totalMinutosInicial / ultimoPeriodoMin),
+        periodoRestante: periodoEscolhido.suiPerTmp,
+        valorRestante: periodoEscolhido.suiPerValor,
+        valorTotal,
+        descricao: periodoEscolhido.suiPerDesc,
+      });
+  
+    } catch (error) {
+      console.error("Erro ao calcular valor da suíte:", error);
+      return response.status(500).json({ error: "Erro interno do servidor." });
+    }
+  },   
+   
   async newItem(request, response) {
     const trx = await connection.transaction(); 
 
