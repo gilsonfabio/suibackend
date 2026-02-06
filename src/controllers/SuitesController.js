@@ -31,7 +31,8 @@ module.exports = {
 
       const suite = await connection("suites")
         .where("suiId", id)
-        .select("*")
+        .join('catsuites', 'catId','suites.suiCatId')
+        .select(["suites.*", 'catsuites.catMaxExtra', 'catsuites.catVlrExtra'])
         .orderBy("suiId")
         .first();
           
