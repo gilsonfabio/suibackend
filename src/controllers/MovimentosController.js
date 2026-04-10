@@ -1,6 +1,7 @@
 const { Console } = require('console');
 const connection = require('../database/connection');
 const moment = require('moment');
+const { v4: uuidv4 } = require('uuid');
 
 module.exports = {   
         
@@ -37,6 +38,8 @@ module.exports = {
       vlrExtra = qtdExtra * 20.00
     }
 
+    const accessCode = uuidv4();
+
     const [movId] = await connection('movSuites').insert({
       movSuiId: id,
       movSuiData: datProcess,
@@ -46,6 +49,7 @@ module.exports = {
       movSuiUsrQtdExtra: qtdExtra,
       movSuiUsrVlrExtra: vlrExtra, 
       movSuiVlrDeposito: deposito,
+      movSuiAccess: accessCode,
       movSuiStatus: status 
     });
 
@@ -530,4 +534,67 @@ module.exports = {
         return response.status(500).json({ error: "Erro interno no servidor." });
     }
   },
+
+  async movFast(request, response) {
+    try {
+      const access = request.params.suiAccess;
+      const status = 'E';
+
+      const movim = await connection('movSuites')
+        .where('movSuiAccess', access)
+        .where('movSuiStatus', status)
+        .first();
+
+      if (!movim) {
+        return response.status(404).json({
+          error: "Movimentação não encontrada"
+        });
+      }
+
+      const itens = await connection('movSuiItens')
+        .where('movSuiId', movim.movId)
+        .join('suiProdutos', 'prdId', 'movSuiProId')
+        .select([
+          'movSuiItens.*',
+          'suiProdutos.prdDescricao',
+          'suiProdutos.prdReferencia',
+          'suiProdutos.prdUnidade',
+          'suiProdutos.prdPrcUnitario',
+          'suiProdutos.prdGrpId',
+          'suiProdutos.prdLnhId',
+          'suiProdutos.prdCnjId'
+        ]);
+
+      const produtos = await connection("suiProdutos as p")
+        .leftJoin('suiPrdGrupos as g', 'g.grpId', 'p.prdGrpId')
+        .leftJoin('suiPrdLinhas as l', 'l.lnhId', 'p.prdLnhId')
+        .select([
+          'p.prdId',
+          'p.prdDescricao',
+          'p.prdReferencia',
+          'p.prdUnidade',
+          'p.prdPrcUnitario',
+          'p.prdGrpId',
+          'p.prdLnhId',
+          'p.prdCnjId',
+          'g.grpDescricao',
+          'l.lnhDescricao',
+          'l.lnhGrpId'
+        ]);
+
+      return response.json({
+        movim,
+        itens,
+        produtos
+      });
+
+    } catch (error) {
+      console.error("Erro movFast:", error);
+
+      return response.status(500).json({
+        error: "Erro interno do servidor"
+      });
+    }
+  }
+
 };

@@ -38,5 +38,6 @@ routes.post('/removeItem', MovimentosController.removeItem);
 routes.get('/vlrPermanencia/:suiId/:tmp', MovimentosController.vlrPermanencia);
 
 routes.get('/searchProdDesc/:texto', ProdutosController.searchProdDesc);
+routes.get('/movFast/:suiAccess', MovimentosController.movFast);
 
 module.exports = routes;
